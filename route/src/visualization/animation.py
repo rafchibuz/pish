@@ -128,12 +128,12 @@ class CarAnimation:
     
     def get_can_data(self, point_index):
         """Получение CAN-данных из CSV с реальным расчетом времени и расстояния"""
-        # Получаем скорость из CSV (ОБНОВЛЕНО)
+        # Получаем скорость из CSV
         current_speed = float(self.route_data['current_speed'].iloc[point_index])
         
-        # Получаем оптимальную скорость если есть в данных
-        optimal_speed = float(self.route_data['optimal_speed'].iloc[point_index]) if 'optimal_speed' in self.route_data.columns else current_speed
-        optimal_fuel = float(self.route_data['optimal_fuel_consumption'].iloc[point_index]) if 'optimal_fuel_consumption' in self.route_data.columns else 0
+        # Получаем УМНУЮ оптимальную скорость
+        optimal_speed = float(self.route_data['smart_optimal_speed'].iloc[point_index]) if 'smart_optimal_speed' in self.route_data.columns else current_speed
+        optimal_fuel = float(self.route_data['smart_optimal_fuel_consumption'].iloc[point_index]) if 'smart_optimal_fuel_consumption' in self.route_data.columns else 0
         
         # Расчет пройденного расстояния
         if point_index > 0:
