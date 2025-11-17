@@ -15,7 +15,7 @@ class RouteManager:
     
     def generate_route(self, start_point, end_point, map_filename, csv_filename):
         """Полный процесс генерации маршрута"""
-        print("🚀 ГЕНЕРАЦИЯ МАРШРУТА")
+        print("🚀 ГЕНЕРАЦИЯ МАРШРУТА С ОПТИМИЗАЦИЕЙ")
         print("=" * 50)
         
         # Получаем данные маршрута
@@ -23,18 +23,18 @@ class RouteManager:
         if not points:
             return False
         
-        # Создаем CSV (теперь с высотами и оптимальными скоростями)
+        # Создаем CSV с умной оптимизацией
         route_length_km = route_info['distance'] / 1000
         self.csv_generator.create_csv_file(points, route_length_km, csv_filename)
         
         # Создаем карту
         self.map_generator.create_static_map(points, route_info, map_filename)
         
-        # Выводим статистику
-        print(f"\n📊 СТАТИСТИКА МАРШРУТА:")
-        print(f"   📏 Общее расстояние: {route_length_km:.1f} км")
-        print(f"   ⏱️  Время в пути: {route_info['duration']/60:.1f} мин")
-        print(f"   📍 Количество точек: {len(points)}")
+        # Упрощенная статистика
+        print(f"\n📊 ИТОГИ МАРШРУТА:")
+        print(f"   📏 Расстояние: {route_length_km:.1f} км")
+        print(f"   ⏱️  Время: {route_info['duration']/60:.1f} мин")
+        print(f"   📍 Точек: {len(points)}")
         
         return True
 

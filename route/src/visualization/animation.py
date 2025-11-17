@@ -110,7 +110,11 @@ class CarAnimation:
             hovercolor='#5DADE2'
         )
         self.btn_reset.on_clicked(self.reset_animation)
-    
+        
+        self.total_fuel_saved_liters = 0
+        self.total_distance_traveled = 0
+        self.cumulative_fuel_saving_percent = 0
+
     def calculate_distance_between_points(self, point1, point2):
         """Расчет расстояния между двумя точками в метрах"""
         lat1, lon1 = point1
@@ -127,15 +131,19 @@ class CarAnimation:
         return distance
     
     def get_can_data(self, point_index):
-        """Получение CAN-данных из CSV с реальным расчетом времени и расстояния"""
+        """Получение CAN-данных из CSV с расчетом ФАКТИЧЕСКОЙ экономии"""
         # Получаем скорость из CSV
         current_speed = float(self.route_data['current_speed'].iloc[point_index])
         
-        # Получаем УМНУЮ оптимальную скорость
+        # Получаем умную оптимальную скорость
         optimal_speed = float(self.route_data['smart_optimal_speed'].iloc[point_index]) if 'smart_optimal_speed' in self.route_data.columns else current_speed
+        
+        # Получаем расходы
+        current_fuel = float(self.route_data['current_fuel_consumption'].iloc[point_index]) if 'current_fuel_consumption' in self.route_data.columns else 0
         optimal_fuel = float(self.route_data['smart_optimal_fuel_consumption'].iloc[point_index]) if 'smart_optimal_fuel_consumption' in self.route_data.columns else 0
         
-        # Расчет пройденного расстояния
+        # Расчет пройденного расстояния и экономии
+        segment_distance_km = 0
         if point_index > 0:
             # Координаты предыдущей и текущей точек
             prev_lat = float(self.route_data['shirota'].iloc[point_index - 1])
@@ -147,28 +155,33 @@ class CarAnimation:
             segment_distance_m = self.calculate_distance_between_points(
                 (prev_lat, prev_lon), (curr_lat, curr_lon)
             )
+            segment_distance_km = segment_distance_m / 1000
             
             # Добавляем к общему расстоянию
-            self.total_distance_km += segment_distance_m / 1000
+            self.total_distance_km += segment_distance_km
+            self.total_distance_traveled += segment_distance_km
+            
+            # Расчет ФАКТИЧЕСКОЙ экономии на этом сегменте
+            current_fuel_used = (current_fuel * segment_distance_km) / 100  # л
+            optimal_fuel_used = (optimal_fuel * segment_distance_km) / 100  # л
+            segment_fuel_saved = current_fuel_used - optimal_fuel_used
+            
+            # Накопление общей экономии
+            self.total_fuel_saved_liters += max(0, segment_fuel_saved)
             
             # Расчет времени на основе скорости из CSV
-            if current_speed > 0 and segment_distance_m > 0:
-                # Время = расстояние / скорость
-                time_for_segment_hours = (segment_distance_m / 1000) / current_speed
+            if current_speed > 0 and segment_distance_km > 0:
+                time_for_segment_hours = segment_distance_km / current_speed
                 time_for_segment_seconds = time_for_segment_hours * 3600
                 self.total_time_seconds += time_for_segment_seconds
         
-        # Расчет расхода топлива (рассчитываем на основе скорости)
-        if current_speed <= 0:
-            fuel_consumption = 0.8  # холостой ход
-        elif current_speed < 30:
-            fuel_consumption = 8.0 + (current_speed / 10)
-        elif current_speed < 60:
-            fuel_consumption = 7.0 + (current_speed / 20)
+        # Расчет общего процента экономии от ПРОЙДЕННОГО пути
+        if self.total_distance_traveled > 0:
+            total_current_fuel_used = (sum([float(self.route_data['current_fuel_consumption'].iloc[i]) 
+                                          for i in range(point_index + 1)]) * segment_distance_km) / 100
+            self.cumulative_fuel_saving_percent = (self.total_fuel_saved_liters / total_current_fuel_used) * 100 if total_current_fuel_used > 0 else 0
         else:
-            fuel_consumption = 9.0 + (current_speed / 30)
-        
-        fuel_consumption = max(0.8, min(15.0, fuel_consumption))
+            self.cumulative_fuel_saving_percent = 0
         
         # Общее время в пути
         total_time = timedelta(seconds=self.total_time_seconds)
@@ -179,28 +192,28 @@ class CarAnimation:
         return {
             'speed': current_speed,
             'optimal_speed': optimal_speed,
-            'optimal_fuel': optimal_fuel,
-            'fuel': round(fuel_consumption, 1),
-            'fuel_saving': fuel_consumption - optimal_fuel if optimal_fuel > 0 else 0,
+            'current_fuel': current_fuel,
+            'fuel_saved_liters': self.total_fuel_saved_liters,
+            'fuel_saving_percent': self.cumulative_fuel_saving_percent,
             'distance': round(self.total_distance_km, 2),
             'time_elapsed': total_time,
             'progress': route_progress
         }
     
     def create_data_panel(self, can_data):
-        """Создание панели с данными включая оптимальные параметры"""
+        """Создание панели с данными - ФАКТИЧЕСКАЯ ЭКОНОМИЯ"""
         self.ax_data.clear()
         self.ax_data.set_facecolor('#34495E')
         self.ax_data.axis('off')
         
         # Заголовок
-        self.ax_data.text(0.5, 0.95, 'ДАННЫЕ В РЕАЛЬНОМ ВРЕМЕНИ', 
-                         ha='center', va='top', color='white', 
-                         fontsize=14, fontweight='bold', transform=self.ax_data.transAxes)
+        self.ax_data.text(0.5, 0.95, 'ФАКТИЧЕСКАЯ ЭКОНОМИЯ', 
+                        ha='center', va='top', color='white', 
+                        fontsize=16, fontweight='bold', transform=self.ax_data.transAxes)
         
         # Основные данные
         y_pos = 0.80
-        line_height = 0.12
+        line_height = 0.13
         
         # Форматируем время
         time_str = str(can_data['time_elapsed']).split('.')[0]
@@ -212,27 +225,52 @@ class CarAnimation:
             ('ВРЕМЯ', time_str),
             ('ПРОГРЕСС', f"{can_data['progress']:.1f}%"),
             ('ТЕКУЩАЯ СКОРОСТЬ', f"{can_data['speed']} км/ч"),
-            ('ОПТИМАЛЬНАЯ СКОРОСТЬ', f"{can_data['optimal_speed']} км/ч"),
-            ('ТЕКУЩИЙ РАСХОД', f"{can_data['fuel']} л/100км"),
-            ('ОПТИМАЛЬНЫЙ РАСХОД', f"{can_data['optimal_fuel']:.1f} л/100км"),
-            ('ЭКОНОМИЯ', f"{can_data['fuel_saving']:.1f} л/100км")
+            ('РЕКОМЕНДУЕМАЯ', f"{can_data['optimal_speed']} км/ч"),
+            ('ТЕКУЩИЙ РАСХОД', f"{can_data['current_fuel']:.1f} л/100км"),
         ]
         
         for label, value in data_items:
             # Метка
             self.ax_data.text(0.05, y_pos, label, color='#BDC3C7', 
-                             fontsize=9, fontweight='bold', transform=self.ax_data.transAxes)
+                            fontsize=10, fontweight='bold', transform=self.ax_data.transAxes)
             # Значение
-            color = '#3498DB' if 'ОПТИМАЛЬ' not in label and 'ЭКОНОМИЯ' not in label else '#27AE60'
-            self.ax_data.text(0.05, y_pos - 0.04, value, color=color, 
-                             fontsize=11, fontweight='bold', transform=self.ax_data.transAxes)
+            color = '#3498DB'
+            self.ax_data.text(0.05, y_pos - 0.05, value, color=color, 
+                            fontsize=12, fontweight='bold', transform=self.ax_data.transAxes)
             y_pos -= line_height
+        
+        # ФАКТИЧЕСКАЯ ЭКОНОМИЯ - ОСНОВНОЙ ПОКАЗАТЕЛЬ
+        saving_percent = can_data['fuel_saving_percent']
+        saved_liters = can_data['fuel_saved_liters']
+        saving_color = '#27AE60' if saving_percent > 5 else '#F39C12' if saving_percent > 0 else '#E74C3C'
+        
+        self.ax_data.text(0.05, y_pos, 'СЭКОНОМЛЕНО ТОПЛИВА', color='#BDC3C7', 
+                        fontsize=11, fontweight='bold', transform=self.ax_data.transAxes)
+        self.ax_data.text(0.05, y_pos - 0.05, f"{saving_percent:.1f}%", color=saving_color, 
+                        fontsize=18, fontweight='bold', transform=self.ax_data.transAxes)
+        
+        # Абсолютная экономия в литрах
+        self.ax_data.text(0.05, y_pos - 0.12, f"({saved_liters:.2f} л)", color=saving_color, 
+                        fontsize=12, fontweight='bold', transform=self.ax_data.transAxes)
+        
+        # Статус экономии
+        if saving_percent > 10:
+            status = "Отличная экономия! 🏆"
+        elif saving_percent > 5:
+            status = "Хорошая экономия! 👍"
+        elif saving_percent > 0:
+            status = "Экономия есть 💰"
+        else:
+            status = "Следуйте рекомендациям 📈"
+        
+        self.ax_data.text(0.05, y_pos - 0.20, status, color=saving_color, 
+                        fontsize=10, fontweight='bold', transform=self.ax_data.transAxes)
         
         # Добавляем рамку
         rect = FancyBboxPatch((0.02, 0.02), 0.96, 0.93, 
-                             boxstyle="round,pad=0.02", 
-                             linewidth=2, edgecolor='#3498DB', 
-                             facecolor='none', transform=self.ax_data.transAxes)
+                            boxstyle="round,pad=0.02", 
+                            linewidth=2, edgecolor='#3498DB', 
+                            facecolor='none', transform=self.ax_data.transAxes)
         self.ax_data.add_patch(rect)
     
     def animate(self, frame):
@@ -305,6 +343,9 @@ class CarAnimation:
         self.current_point = 0
         self.total_distance_km = 0
         self.total_time_seconds = 0
+        self.total_fuel_saved_liters = 0  # Сброс экономии
+        self.total_distance_traveled = 0
+        self.cumulative_fuel_saving_percent = 0
         self.start_time = datetime.now()
         
         print("🔄 Анимация сброшена")
