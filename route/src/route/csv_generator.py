@@ -13,7 +13,7 @@ class CSVGenerator:
         self.speed_optimizer = SmartSpeedOptimizer()  # ДОБАВИТЬ
     
     def create_csv_file(self, points, route_length_km, filename='маршрут_с_скоростями.csv'):
-        """Создание CSV файла с УМНЫМИ оптимальными скоростями"""
+        """Создание CSV файла с умной оптимизацией"""
         print("💾 Создание CSV файла с умной оптимизацией...")
         
         # Получаем данные о высотах и уклонах
@@ -39,7 +39,7 @@ class CSVGenerator:
             current_consumptions.append(current_consumption)
             optimal_consumptions.append(optimal_consumption)
         
-        # Анализ экономии
+        # Анализ экономии - УБРАЛИ ЛИШНИЕ ПЕРЕМЕННЫЕ
         fuel_saving, saving_percentage = self.speed_optimizer.calculate_fuel_savings_analysis(
             current_speeds, optimal_speeds, slopes
         )
@@ -77,22 +77,23 @@ class CSVGenerator:
         
         print(f"✅ Умный CSV файл создан: {filename}")
         
-        # Детальная статистика
+        # Детальная статистика - ИСПРАВЛЕННЫЙ ВЫЗОВ
         self._print_smart_statistics(current_speeds, optimal_speeds, current_consumptions, 
-                                   optimal_consumptions, slopes, fuel_saving, saving_percentage)
+                                optimal_consumptions, slopes, route_length_km)  # УБРАЛИ 2 ЛИШНИХ АРГУМЕНТА
         
         return optimal_speeds, optimal_consumptions
     
     def _print_smart_statistics(self, current_speeds, optimal_speeds, current_consumptions, 
-                          optimal_consumptions, slopes, route_length_km):
+                            optimal_consumptions, slopes, route_length_km):
         """Вывод статистики с ФАКТИЧЕСКОЙ экономией"""
         avg_current_speed = sum(current_speeds) / len(current_speeds)
         avg_optimal_speed = sum(optimal_speeds) / len(optimal_speeds)
         
         # Расчет ФАКТИЧЕСКОЙ экономии для всего маршрута
-        total_current_fuel = sum([(consumption * route_length_km) / len(current_consumptions) / 100 
+        segment_length_km = route_length_km / len(current_consumptions)
+        total_current_fuel = sum([(consumption * segment_length_km) / 100 
                                 for consumption in current_consumptions])
-        total_optimal_fuel = sum([(consumption * route_length_km) / len(optimal_consumptions) / 100 
+        total_optimal_fuel = sum([(consumption * segment_length_km) / 100 
                                 for consumption in optimal_consumptions])
         total_fuel_saved = total_current_fuel - total_optimal_fuel
         overall_saving_percent = (total_fuel_saved / total_current_fuel) * 100 if total_current_fuel > 0 else 0
@@ -100,7 +101,7 @@ class CSVGenerator:
         print(f"\n📊 ИТОГОВАЯ СТАТИСТИКА:")
         print(f"   🚗 Ваша средняя скорость: {avg_current_speed:.1f} км/ч")
         print(f"   🎯 Рекомендуемая скорость: {avg_optimal_speed:.1f} км/ч")
-        print(f"   ⛽ Ваш расход: {sum(current_consumptions)/len(current_consumptions):.1f} л/100км")
+        print(f"   ⛽ Ваш средний расход: {sum(current_consumptions)/len(current_consumptions):.1f} л/100км")
         print(f"   💰 Рекомендуемый расход: {sum(optimal_consumptions)/len(optimal_consumptions):.1f} л/100км")
         print(f"   🔥 ФАКТИЧЕСКАЯ ЭКОНОМИЯ: {overall_saving_percent:.1f}%")
         print(f"   ⛽ Сэкономлено топлива: {total_fuel_saved:.2f} л")
@@ -110,7 +111,30 @@ class CSVGenerator:
         money_saved = total_fuel_saved * fuel_price
         print(f"   💵 Сэкономлено денег: {money_saved:.0f} руб")
         
-        # Рекомендации по итогам
+        # Анализ по типам участков
+        flat_segments = [i for i, slope in enumerate(slopes) if abs(slope) < 2]
+        uphill_segments = [i for i, slope in enumerate(slopes) if slope >= 2]
+        downhill_segments = [i for i, slope in enumerate(slopes) if slope <= -2]
+        
+        if uphill_segments:
+            uphill_current = sum(current_consumptions[i] for i in uphill_segments) / len(uphill_segments)
+            uphill_optimal = sum(optimal_consumptions[i] for i in uphill_segments) / len(uphill_segments)
+            uphill_saving = ((uphill_current - uphill_optimal) / uphill_current) * 100
+            print(f"   📈 Экономия на подъемах: {uphill_saving:.1f}%")
+        
+        if downhill_segments:
+            downhill_current = sum(current_consumptions[i] for i in downhill_segments) / len(downhill_segments)
+            downhill_optimal = sum(optimal_consumptions[i] for i in downhill_segments) / len(downhill_segments)
+            downhill_saving = ((downhill_current - downhill_optimal) / downhill_current) * 100
+            print(f"   📉 Экономия на спусках: {downhill_saving:.1f}%")
+        
+        if flat_segments:
+            flat_current = sum(current_consumptions[i] for i in flat_segments) / len(flat_segments)
+            flat_optimal = sum(optimal_consumptions[i] for i in flat_segments) / len(flat_segments)
+            flat_saving = ((flat_current - flat_optimal) / flat_current) * 100
+            print(f"   🛣️  Экономия на ровной дороге: {flat_saving:.1f}%")
+        
+        # Рекомендации
         print(f"\n💡 ИТОГОВЫЕ РЕКОМЕНДАЦИИ:")
         if overall_saving_percent > 15:
             print("   🏆 Потрясающе! Вы могли бы сэкономить значительную сумму.")
