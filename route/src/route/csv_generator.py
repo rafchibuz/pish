@@ -143,22 +143,31 @@ class CSVGenerator:
         
         print(f"✅ CSV файл с ИИ-оптимизацией создан: {filename}")
         
-        # Статистика
-        self._print_ai_statistics(current_speeds, optimal_speeds, current_consumptions, 
+        # Статистика - ИСПРАВЛЕННЫЙ ВЫЗОВ!
+        self._print_smart_statistics(current_speeds, optimal_speeds, current_consumptions, 
                                 optimal_consumptions, route_length_km)
         
         return optimal_speeds, optimal_consumptions
     
-    def _print_ai_statistics(self, current_speeds, optimal_speeds, current_consumptions, 
-                           optimal_consumptions, route_length_km):
-        """Вывод статистики с использованием нейросети"""
+    def _print_smart_statistics(self, current_speeds, optimal_speeds, current_consumptions, 
+                              optimal_consumptions, route_length_km):
+        """Вывод статистики с ПРАВИЛЬНЫМ расчетом экономии"""
         avg_current_speed = sum(current_speeds) / len(current_speeds)
         avg_optimal_speed = sum(optimal_speeds) / len(optimal_speeds)
         avg_current_consumption = sum(current_consumptions) / len(current_consumptions)
         avg_optimal_consumption = sum(optimal_consumptions) / len(optimal_consumptions)
         
-        total_fuel_saving = sum(current_consumptions) - sum(optimal_consumptions)
-        saving_percentage = (total_fuel_saving / sum(current_consumptions)) * 100
+        # ПРАВИЛЬНЫЙ расчет экономии
+        # Средний расход в л/100км переводим в литры на ВЕСЬ маршрут
+        current_fuel_total = (avg_current_consumption * route_length_km) / 100
+        optimal_fuel_total = (avg_optimal_consumption * route_length_km) / 100
+        total_fuel_saved = current_fuel_total - optimal_fuel_total
+        
+        # Процент экономии
+        saving_percentage = (total_fuel_saved / current_fuel_total) * 100 if current_fuel_total > 0 else 0
+        
+        # Экономия на 100км (для сравнения)
+        fuel_saving_per_100km = avg_current_consumption - avg_optimal_consumption
         
         print(f"\n🤖 СТАТИСТИКА С ИСКУССТВЕННЫМ ИНТЕЛЛЕКТОМ:")
         print(f"   🧠 Используется: {'НЕЙРОСЕТЬ' if self.use_neural_network else 'ФИЗИЧЕСКАЯ МОДЕЛЬ'}")
@@ -167,4 +176,16 @@ class CSVGenerator:
         print(f"   ⛽ Ваш средний расход: {avg_current_consumption:.1f} л/100км")
         print(f"   💰 Рекомендуемый расход: {avg_optimal_consumption:.1f} л/100км")
         print(f"   🔥 ЭКОНОМИЯ: {saving_percentage:.1f}%")
-        print(f"   ⛽ Сэкономлено: {total_fuel_saving:.1f} л на 100км")
+        print(f"   💵 Сэкономлено на маршруте: {total_fuel_saved:.2f} л")
+        print(f"   📏 Экономия на 100км: {fuel_saving_per_100km:.2f} л")
+        
+        # Дополнительная информация
+        print(f"\n   📊 Детали маршрута:")
+        print(f"   📏 Длина маршрута: {route_length_km:.1f} км")
+        print(f"   ⛽ Всего топлива (ваш стиль): {current_fuel_total:.2f} л")
+        print(f"   ⛽ Всего топлива (оптимально): {optimal_fuel_total:.2f} л")
+        
+        # Денежная экономия (примерно 50 руб/литр)
+        money_saved = total_fuel_saved * 50
+        print(f"   💰 Сэкономлено денег: {money_saved:.0f} руб")
+    
