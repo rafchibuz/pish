@@ -54,4 +54,3 @@ class RouteFetcher:
         except Exception as e:
             print(f"❌ Ошибка: {e}")
             return None, None
-        
