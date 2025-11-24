@@ -23,34 +23,43 @@ class CSVGenerator:
             self.load_neural_model()
     
     def load_neural_model(self):
-        """Загрузка обученной нейросети"""
-        model_path = 'models/fuel_predictor.pkl'
-        if os.path.exists(model_path):
-            try:
-                model_data = joblib.load(model_path)
-                self.neural_model = model_data['model']
-                self.neural_scaler = model_data['scaler']
-                print("✅ Нейросеть загружена для предсказания расхода")
-            except Exception as e:
-                print(f"❌ Ошибка загрузки нейросети: {e}")
-                print("💡 Будет использована физическая модель")
-                self.use_neural_network = False
-        else:
-            print("❌ Файл нейросети не найден")
-            print("💡 Будет использована физическая модель")
-            self.use_neural_network = False
+        """Загрузка обученной нейросети - выводится ОДИН РАЗ"""
+        # Пробуем разные возможные пути
+        possible_paths = [
+            'models/fuel_predictor.pkl',           # относительно корня
+            '../models/fuel_predictor.pkl',        # из папки src/route
+            '../../models/fuel_predictor.pkl',     # из глубоких папок
+            './models/fuel_predictor.pkl',         # текущая директория
+        ]
+        
+        for model_path in possible_paths:
+            if os.path.exists(model_path):
+                try:
+                    model_data = joblib.load(model_path)
+                    self.neural_model = model_data['model']
+                    self.neural_scaler = model_data['scaler']
+                    self.use_neural_network = True
+                    return True  # Успешно загружено
+                except Exception as e:
+                    print(f"❌ Ошибка загрузки {model_path}: {e}")
+                    break
+        
+        # Если не удалось загрузить
+        self.use_neural_network = False
+        return False
     
     def predict_fuel_consumption(self, speed, slope, elevation=100, acceleration=0, progress=0.5):
         """Предсказание расхода с использованием нейросети или физической модели"""
         if self.use_neural_network and self.neural_model is not None:
-            # Используем нейросеть
+            # Используем нейросеть БЕЗ вывода сообщений
             try:
                 features = np.array([[speed, slope, elevation, acceleration, progress]])
                 features_scaled = self.neural_scaler.transform(features)
                 prediction = self.neural_model.predict(features_scaled)[0]
                 return max(4.0, prediction)
             except Exception as e:
-                print(f"❌ Ошибка нейросети: {e}, используем физическую модель")
+                # Тихо переключаемся на физическую модель
+                pass
         
         # Используем физическую модель как запасной вариант
         return self.fuel_calculator.calculate_fuel_consumption_physical(speed, slope)
@@ -58,6 +67,13 @@ class CSVGenerator:
     def create_csv_file(self, points, route_length_km, filename='маршрут_с_скоростями.csv'):
         """Создание CSV файла с использованием нейросети"""
         print("💾 Создание CSV файла с ИИ-оптимизацией...")
+        
+        # Загружаем нейросеть (ОДИН РАЗ в начале)
+        neural_loaded = self.load_neural_model()
+        if neural_loaded:
+            print("✅ Нейросеть загружена для предсказания расхода")
+        else:
+            print("💡 Используется физическая модель расхода")
         
         # Получаем данные о высотах и уклонах
         elevations, slopes = self.elevation_calculator.get_elevation_data(points)
@@ -74,7 +90,11 @@ class CSVGenerator:
         current_consumptions = []
         optimal_consumptions = []
         
-        print("🧠 Расчет расходов с помощью нейросети...")
+        if neural_loaded:
+            print("🧠 Расчет расходов с помощью нейросети...")
+        else:
+            print("📐 Расчет расходов по физической модели...")
+        
         for i, (current_speed, optimal_speed, slope, elevation) in enumerate(zip(
             current_speeds, optimal_speeds, slopes, elevations)):
             
