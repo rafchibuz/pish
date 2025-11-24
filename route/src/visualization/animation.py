@@ -131,16 +131,31 @@ class CarAnimation:
         return distance
     
     def get_can_data(self, point_index):
-        """Получение CAN-данных из CSV с расчетом ФАКТИЧЕСКОЙ экономии"""
+        """Получение CAN-данных с использованием нейросети"""
         # Получаем скорость из CSV
         current_speed = float(self.route_data['current_speed'].iloc[point_index])
         
-        # Получаем умную оптимальную скорость
-        optimal_speed = float(self.route_data['smart_optimal_speed'].iloc[point_index]) if 'smart_optimal_speed' in self.route_data.columns else current_speed
+        # Получаем оптимальную скорость
+        optimal_speed = float(self.route_data['smart_optimal_speed'].iloc[point_index])
         
-        # Получаем расходы
-        current_fuel = float(self.route_data['current_fuel_consumption'].iloc[point_index]) if 'current_fuel_consumption' in self.route_data.columns else 0
-        optimal_fuel = float(self.route_data['smart_optimal_fuel_consumption'].iloc[point_index]) if 'smart_optimal_fuel_consumption' in self.route_data.columns else 0
+        # Получаем уклон и высоту
+        slope = float(self.route_data['slope_percent'].iloc[point_index]) if 'slope_percent' in self.route_data.columns else 0
+        elevation = float(self.route_data['elevation'].iloc[point_index]) if 'elevation' in self.route_data.columns else 100
+        
+        # Используем нейросеть для расчета расхода (если доступна)
+        try:
+            from src.route.csv_generator import CSVGenerator
+            fuel_calculator = CSVGenerator()
+            current_fuel = fuel_calculator.predict_fuel_consumption(
+                current_speed, slope, elevation, 0, point_index/self.total_points
+            )
+            optimal_fuel = fuel_calculator.predict_fuel_consumption(
+                optimal_speed, slope, elevation, 0, point_index/self.total_points
+            )
+        except:
+            # Запасной вариант - используем данные из CSV
+            current_fuel = float(self.route_data['current_fuel_consumption'].iloc[point_index])
+            optimal_fuel = float(self.route_data['smart_optimal_fuel_consumption'].iloc[point_index])
         
         # Расчет пройденного расстояния и экономии
         segment_distance_km = 0
@@ -193,8 +208,9 @@ class CarAnimation:
             'speed': current_speed,
             'optimal_speed': optimal_speed,
             'current_fuel': current_fuel,
+            'optimal_fuel': optimal_fuel,
             'fuel_saved_liters': self.total_fuel_saved_liters,
-            'fuel_saving_percent': self.cumulative_fuel_saving_percent,
+            'fuel_saving_percent': ((current_fuel - optimal_fuel) / current_fuel) * 100 if current_fuel > 0 else 0,
             'distance': round(self.total_distance_km, 2),
             'time_elapsed': total_time,
             'progress': route_progress
