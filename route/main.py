@@ -4,6 +4,16 @@ from src.route.csv_generator import CSVGenerator
 from src.visualization.map_generator import MapGenerator
 from src.visualization.animation import CarAnimation
 from src.utils.config import ROUTE_EXAMPLES
+import warnings
+import os
+import sys
+
+# Подавляем предупреждения tkinter о глифах
+warnings.filterwarnings("ignore", category=UserWarning, module='tkinter')
+
+# Или более конкретно - только предупреждения о глифах
+import warnings
+warnings.filterwarnings("ignore", message=".*Glyph.*missing from font.*")
 
 class RouteManager:
     """Основной класс для управления всем процессом"""
